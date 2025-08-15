@@ -1,0 +1,475 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Arduino Uno R3 Simulator</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background: linear-gradient(135deg, #1e3c72, #2a5298);
+            color: white;
+            min-height: 100vh;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+        }
+        
+        .panel {
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 15px;
+            padding: 20px;
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+        
+        .header {
+            grid-column: 1 / -1;
+            text-align: center;
+            background: rgba(0, 100, 200, 0.3);
+        }
+        
+        .arduino-board {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 15px;
+            margin: 20px 0;
+        }
+        
+        .led {
+            width: 60px;
+            height: 60px;
+            border-radius: 50%;
+            border: 3px solid #333;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 10px;
+            font-weight: bold;
+            transition: all 0.3s ease;
+            cursor: pointer;
+            position: relative;
+        }
+        
+        .led.on {
+            box-shadow: 0 0 20px currentColor, inset 0 0 20px rgba(255,255,255,0.3);
+            transform: scale(1.1);
+        }
+        
+        .led.builtin { background: #333; color: #ff6b00; }
+        .led.builtin.on { background: #ff6b00; color: white; }
+        
+        .led.red { background: #800; color: #ff4444; }
+        .led.red.on { background: #ff4444; color: white; }
+        
+        .led.green { background: #080; color: #44ff44; }
+        .led.green.on { background: #44ff44; color: white; }
+        
+        .led.blue { background: #008; color: #4444ff; }
+        .led.blue.on { background: #4444ff; color: white; }
+        
+        .led.yellow { background: #880; color: #ffff44; }
+        .led.yellow.on { background: #ffff44; color: black; }
+        
+        .controls {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+            margin: 20px 0;
+        }
+        
+        .btn {
+            padding: 12px 20px;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: bold;
+            transition: all 0.2s ease;
+            background: #007bff;
+            color: white;
+        }
+        
+        .btn:hover { transform: translateY(-2px); box-shadow: 0 5px 15px rgba(0,123,255,0.3); }
+        .btn:disabled { background: #666; cursor: not-allowed; transform: none; }
+        
+        .btn.danger { background: #dc3545; }
+        .btn.success { background: #28a745; }
+        .btn.warning { background: #ffc107; color: black; }
+        
+        .status-indicator {
+            display: inline-block;
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            margin-right: 8px;
+        }
+        
+        .status-connected { background: #28a745; }
+        .status-disconnected { background: #dc3545; }
+        
+        .sensor-panel {
+            background: rgba(40, 167, 69, 0.2);
+            border-left: 4px solid #28a745;
+        }
+        
+        .sensor-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 10px;
+            margin: 5px 0;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 8px;
+        }
+        
+        .sensor-value {
+            font-weight: bold;
+            font-size: 1.2em;
+            color: #28a745;
+        }
+        
+        .console {
+            height: 250px;
+            overflow-y: auto;
+            background: rgba(0, 0, 0, 0.3);
+            border-radius: 8px;
+            padding: 10px;
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+        
+        .console-message {
+            margin: 2px 0;
+            padding: 5px;
+            border-radius: 3px;
+        }
+        
+        .console-info { color: #17a2b8; }
+        .console-success { color: #28a745; }
+        .console-warning { color: #ffc107; }
+        .console-error { color: #dc3545; }
+        
+        .welcome-banner {
+            background: linear-gradient(45deg, #28a745, #20c997);
+            text-align: center;
+            padding: 15px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+            display: none;
+        }
+        
+        .pin-label {
+            font-size: 8px;
+            position: absolute;
+            bottom: -20px;
+            left: 50%;
+            transform: translateX(-50%);
+            color: #ccc;
+        }
+        
+        @keyframes blink {
+            0%, 50% { opacity: 1; }
+            51%, 100% { opacity: 0.3; }
+        }
+        
+        .led.blinking {
+            animation: blink 0.5s infinite;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="panel header">
+            <h1>🔧 Arduino Uno R3 Simulator</h1>
+            <div id="connectionStatus">
+                <span class="status-indicator status-disconnected"></span>
+                Disconnected
+            </div>
+            <div id="welcomeBanner" class="welcome-banner">
+                <h3 id="welcomeMessage">🚀 Arduino Ready!</h3>
+                <p id="welcomeDetails">Board: Arduino Uno R3 | Firmware: 1.8.19</p>
+            </div>
+        </div>
+        
+        <div class="panel">
+            <h3>💡 LED Control Panel</h3>
+            <div class="arduino-board">
+                <div class="led builtin" id="led-builtin" onclick="toggleLED('built_in', 13)">
+                    <span>L</span>
+                    <div class="pin-label">Pin 13</div>
+                </div>
+                <div class="led red" id="led-red" onclick="toggleLED('red', 8)">
+                    <span>R</span>
+                    <div class="pin-label">Pin 8</div>
+                </div>
+                <div class="led green" id="led-green" onclick="toggleLED('green', 9)">
+                    <span>G</span>
+                    <div class="pin-label">Pin 9</div>
+                </div>
+                <div class="led blue" id="led-blue" onclick="toggleLED('blue', 10)">
+                    <span>B</span>
+                    <div class="pin-label">Pin 10</div>
+                </div>
+                <div class="led yellow" id="led-yellow" onclick="toggleLED('yellow', 11)">
+                    <span>Y</span>
+                    <div class="pin-label">Pin 11</div>
+                </div>
+            </div>
+            
+            <div class="controls">
+                <button class="btn" onclick="connect()">🔌 Connect</button>
+                <button class="btn danger" onclick="disconnect()">❌ Disconnect</button>
+                <button class="btn warning" onclick="blinkBuiltIn()">⚡ Blink LED</button>
+                <button class="btn danger" onclick="resetArduino()">🔄 Reset Board</button>
+                <button class="btn success" onclick="allLEDsOn()">💡 All ON</button>
+                <button class="btn" onclick="allLEDsOff()">🌑 All OFF</button>
+            </div>
+        </div>
+        
+        <div class="panel sensor-panel">
+            <h3>📊 Sensor Readings</h3>
+            <div class="sensor-item">
+                <span>🌡️ Temperature (A0):</span>
+                <span class="sensor-value" id="temp-value">-- °C</span>
+            </div>
+            <div class="sensor-item">
+                <span>💡 Light Sensor (A1):</span>
+                <span class="sensor-value" id="light-value">-- lux</span>
+            </div>
+            <div class="sensor-item">
+                <span>🎚️ Potentiometer (A2):</span>
+                <span class="sensor-value" id="pot-value">-- %</span>
+            </div>
+            
+            <div class="controls">
+                <button class="btn" onclick="readSensor(0)">📖 Read Temp</button>
+                <button class="btn" onclick="readSensor(1)">📖 Read Light</button>
+                <button class="btn" onclick="readSensor(2)">📖 Read Pot</button>
+            </div>
+        </div>
+        
+        <div class="panel">
+            <h3>📱 Serial Monitor</h3>
+            <div class="console" id="console"></div>
+            <div class="controls">
+                <button class="btn" onclick="clearConsole()">🗑️ Clear</button>
+                <button class="btn success" onclick="getArduinoState()">📋 Get State</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let socket = null;
+        let arduinoState = {
+            leds: { built_in: false, red: false, green: false, blue: false, yellow: false },
+            sensors: { temperature: 0, light: 0, potentiometer: 0 }
+        };
+        
+        function updateConnectionStatus(connected, message = '') {
+            const status = document.getElementById('connectionStatus');
+            const indicator = status.querySelector('.status-indicator');
+            
+            if (connected) {
+                status.innerHTML = `<span class="status-indicator status-connected"></span>Connected ${message}`;
+            } else {
+                status.innerHTML = `<span class="status-indicator status-disconnected"></span>Disconnected`;
+            }
+        }
+        
+        function showWelcomeBanner(data) {
+            const banner = document.getElementById('welcomeBanner');
+            const message = document.getElementById('welcomeMessage');
+            const details = document.getElementById('welcomeDetails');
+            
+            message.textContent = `🚀 ${data.message}`;
+            details.textContent = `Board: ${data.board} | Firmware: ${data.firmware}`;
+            
+            banner.style.display = 'block';
+            arduinoState = data.state;
+            updateLEDDisplay();
+            updateSensorDisplay();
+        }
+        
+        function updateLEDDisplay() {
+            Object.keys(arduinoState.leds).forEach(ledName => {
+                const ledElement = document.getElementById(`led-${ledName.replace('_', '-')}`);
+                if (ledElement) {
+                    if (arduinoState.leds[ledName]) {
+                        ledElement.classList.add('on');
+                    } else {
+                        ledElement.classList.remove('on');
+                    }
+                }
+            });
+        }
+        
+        function updateSensorDisplay() {
+            document.getElementById('temp-value').textContent = `${arduinoState.sensors.temperature.toFixed(1)} °C`;
+            document.getElementById('light-value').textContent = `${arduinoState.sensors.light}`;
+            document.getElementById('pot-value').textContent = `${Math.round((arduinoState.sensors.potentiometer / 1023) * 100)}%`;
+        }
+        
+        function addConsoleMessage(message, type = 'info') {
+            const console = document.getElementById('console');
+            const timestamp = new Date().toLocaleTimeString();
+            
+            const messageDiv = document.createElement('div');
+            messageDiv.className = `console-message console-${type}`;
+            messageDiv.innerHTML = `[${timestamp}] ${typeof message === 'object' ? JSON.stringify(message, null, 2) : message}`;
+            
+            console.appendChild(messageDiv);
+            console.scrollTop = console.scrollHeight;
+        }
+        
+        function connect() {
+            if (socket) return;
+            
+            try {
+                socket = new WebSocket('ws://localhost:8765');
+                
+                socket.onopen = function(event) {
+                    updateConnectionStatus(true, '- Arduino IDE Ready');
+                    addConsoleMessage('🔌 Arduino connected successfully', 'success');
+                };
+                
+                socket.onmessage = function(event) {
+                    try {
+                        const data = JSON.parse(event.data);
+                        
+                        if (data.type === 'arduino_ready') {
+                            showWelcomeBanner(data);
+                        } else if (data.type === 'state_update') {
+                            arduinoState = data.state;
+                            updateLEDDisplay();
+                            updateSensorDisplay();
+                        } else if (data.type === 'sensor_update') {
+                            arduinoState.sensors = data.sensors;
+                            updateSensorDisplay();
+                            addConsoleMessage(`📊 Sensors updated: T=${data.sensors.temperature.toFixed(1)}°C Light=${data.sensors.light}`, 'info');
+                        } else if (data.type === 'blink_response') {
+                            handleBlinkAnimation(data);
+                        } else {
+                            addConsoleMessage(data, data.type === 'error' ? 'error' : 'success');
+                        }
+                        
+                    } catch (e) {
+                        addConsoleMessage(event.data, 'warning');
+                    }
+                };
+                
+                socket.onclose = function(event) {
+                    updateConnectionStatus(false);
+                    document.getElementById('welcomeBanner').style.display = 'none';
+                    addConsoleMessage('❌ Arduino disconnected', 'error');
+                    socket = null;
+                };
+                
+                socket.onerror = function(error) {
+                    addConsoleMessage('🚨 Connection error: ' + error, 'error');
+                };
+                
+            } catch (error) {
+                addConsoleMessage('❌ Cannot connect to Arduino: ' + error, 'error');
+            }
+        }
+        
+        function disconnect() {
+            if (socket) {
+                socket.close();
+            }
+        }
+        
+        function sendCommand(command) {
+            if (socket && socket.readyState === WebSocket.OPEN) {
+                socket.send(JSON.stringify(command));
+                return true;
+            } else {
+                addConsoleMessage('❌ Arduino not connected!', 'error');
+                return false;
+            }
+        }
+        
+        function toggleLED(ledName, pin) {
+            const newValue = !arduinoState.leds[ledName];
+            
+            if (sendCommand({
+                type: 'digitalWrite',
+                pin: pin,
+                value: newValue
+            })) {
+                addConsoleMessage(`💡 ${ledName.toUpperCase()} LED -> ${newValue ? 'ON' : 'OFF'}`, 'info');
+            }
+        }
+        
+        function blinkBuiltIn() {
+            if (sendCommand({
+                type: 'blink_builtin',
+                times: 5,
+                delay: 300
+            })) {
+                addConsoleMessage('⚡ Built-in LED blinking...', 'warning');
+            }
+        }
+        
+        function handleBlinkAnimation(data) {
+            const builtinLED = document.getElementById('led-builtin');
+            builtinLED.classList.add('blinking');
+            
+            setTimeout(() => {
+                builtinLED.classList.remove('blinking');
+            }, data.times * data.delay);
+        }
+        
+        function resetArduino() {
+            if (sendCommand({ type: 'reset_arduino' })) {
+                addConsoleMessage('🔄 Arduino reset', 'warning');
+            }
+        }
+        
+        function allLEDsOn() {
+            ['built_in', 'red', 'green', 'blue', 'yellow'].forEach((led, index) => {
+                setTimeout(() => {
+                    const pin = [13, 8, 9, 10, 11][index];
+                    sendCommand({ type: 'digitalWrite', pin: pin, value: true });
+                }, index * 100);
+            });
+            addConsoleMessage('💡 All LEDs ON', 'success');
+        }
+        
+        function allLEDsOff() {
+            sendCommand({ type: 'reset_arduino' });
+        }
+        
+        function readSensor(analogPin) {
+            if (sendCommand({
+                type: 'analogRead',
+                pin: analogPin
+            })) {
+                const sensorNames = ['Temperature', 'Light', 'Potentiometer'];
+                addConsoleMessage(`📖 Reading ${sensorNames[analogPin]} sensor...`, 'info');
+            }
+        }
+        
+        function getArduinoState() {
+            sendCommand({ type: 'get_state' });
+        }
+        
+        function clearConsole() {
+            document.getElementById('console').innerHTML = '';
+        }
+        
+        // Auto-connect khi load trang
+        window.onload = function() {
+            setTimeout(connect, 1000);
+        };
+    </script>
+</body>
+</html>
